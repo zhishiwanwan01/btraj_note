@@ -40,9 +40,9 @@
 # debug information files
 *.dwo
 
-# claude 
-.claude/
-CLAUDE.md
+# # claude 
+# .claude/
+# CLAUDE.md
 
 # license
 *.lic
