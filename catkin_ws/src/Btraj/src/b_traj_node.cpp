@@ -1211,18 +1211,20 @@ int main(int argc, char** argv) {
   nh.param("vis/is_proj_cube", _is_proj_cube, true);
 
   Bernstein _bernstein;
+  // 确认贝塞尔曲线的阶数在库允许的范围内
   if (_bernstein.setParam(3, 12, _minimize_order) == -1)
     ROS_ERROR(
         " The trajectory order is set beyond the library's scope, please "
         "re-set ");
-
+  // 从预先实例化好的 Bernstein 对象里按轨迹阶数 _traj_order
+  // 取出对应的矩阵/向量表，填充 _MQM、_FM、_C、_Cv、_Ca、_Cj
   _MQM = _bernstein.getMQM()[_traj_order];
   _FM = _bernstein.getFM()[_traj_order];
   _C = _bernstein.getC()[_traj_order];
   _Cv = _bernstein.getC_v()[_traj_order];
   _Ca = _bernstein.getC_a()[_traj_order];
   _Cj = _bernstein.getC_j()[_traj_order];
-
+  // 地图尺寸、边界、原点设定
   _map_origin << -_x_size / 2.0, -_y_size / 2.0, 0.0;
   _pt_max_x = +_x_size / 2.0;
   _pt_min_x = -_x_size / 2.0;
@@ -1230,7 +1232,7 @@ int main(int argc, char** argv) {
   _pt_min_y = -_y_size / 2.0;
   _pt_max_z = +_z_size;
   _pt_min_z = 0.0;
-
+  // 计算地图尺寸对应的全局和局部栅格数量，提前计算reso的倒数，以免频繁除法
   _inv_resolution = 1.0 / _resolution;
   _max_x_id = (int)(_x_size * _inv_resolution);
   _max_y_id = (int)(_y_size * _inv_resolution);
