@@ -212,7 +212,7 @@ void rcvPointCloudCallBack(const sensor_msgs::PointCloud2& pointcloud_map) {
   double _x_buffer_size = _x_local_size + _buffer_size;
   double _y_buffer_size = _y_local_size + _buffer_size;
   double _z_buffer_size = _z_local_size + _buffer_size;
-
+  // 局部碰撞地图
   collision_map_local = new CollisionMapGrid(
       origin_local_transform, "world", _resolution, _x_buffer_size,
       _y_buffer_size, _z_buffer_size, _free_cell);
@@ -221,7 +221,7 @@ void rcvPointCloudCallBack(const sensor_msgs::PointCloud2& pointcloud_map) {
   pcl::PointCloud<pcl::PointXYZ> cloud_inflation;
   pcl::PointCloud<pcl::PointXYZ> cloud_local;
 
-  // 仅处理局部窗口内的点并进行膨胀写入局部/全局地图。
+  // 仅处理局部窗口内的点并进行膨胀写入局部/全局地图，
   for (int idx = 0; idx < (int)cloud.points.size(); idx++) {
     auto mk = cloud.points[idx];
     pcl::PointXYZ pt(mk.x, mk.y, mk.z);
@@ -1152,8 +1152,11 @@ int main(int argc, char** argv) {
   ros::init(argc, argv, "b_traj_node");  // 初始化节点
   ros::NodeHandle nh("~");               // 创建节点句柄
 
+  // 订阅的topic是map
   _map_sub = nh.subscribe("map", 1, rcvPointCloudCallBack);
+
   _odom_sub = nh.subscribe("odometry", 1, rcvOdometryCallbck);
+
   _pts_sub = nh.subscribe("waypoints", 1, rcvWaypointsCallback);
 
   _inf_map_vis_pub =
@@ -1224,7 +1227,17 @@ int main(int argc, char** argv) {
   _Cv = _bernstein.getC_v()[_traj_order];
   _Ca = _bernstein.getC_a()[_traj_order];
   _Cj = _bernstein.getC_j()[_traj_order];
-  // 地图尺寸、边界、原点设定
+
+  /**
+   * @brief
+   * 下面五段的作用是根据地图尺寸、分辨率等参数，初始化栅格地图，
+   * 基于初始化的栅格地图，初始化路径搜索器和碰撞地图
+   * @param GLSIZE 全局栅格地图尺寸
+   * @param LOSIZE 局部栅格地图尺寸
+   * @param path_finder 路径搜索器
+   * @param collision_map 碰撞地图
+   */
+  // 1. 地图尺寸、边界、原点设定
   _map_origin << -_x_size / 2.0, -_y_size / 2.0, 0.0;
   _pt_max_x = +_x_size / 2.0;
   _pt_min_x = -_x_size / 2.0;
@@ -1232,21 +1245,29 @@ int main(int argc, char** argv) {
   _pt_min_y = -_y_size / 2.0;
   _pt_max_z = +_z_size;
   _pt_min_z = 0.0;
-  // 计算地图尺寸对应的全局和局部栅格数量，提前计算reso的倒数，以免频繁除法
-  _inv_resolution = 1.0 / _resolution;
+  // 2. 计算地图尺寸对应的全局和局部栅格数量
+  _inv_resolution = 1.0 / _resolution;  // 提前计算reso的倒数，以免频繁除法
   _max_x_id = (int)(_x_size * _inv_resolution);
   _max_y_id = (int)(_y_size * _inv_resolution);
   _max_z_id = (int)(_z_size * _inv_resolution);
   _max_local_x_id = (int)(_x_local_size * _inv_resolution);
   _max_local_y_id = (int)(_y_local_size * _inv_resolution);
   _max_local_z_id = (int)(_z_local_size * _inv_resolution);
-
+  // 3. 将空间离散化为栅格地图，分别对应全局和局部地图
   Vector3i GLSIZE(_max_x_id, _max_y_id, _max_z_id);
   Vector3i LOSIZE(_max_local_x_id, _max_local_y_id, _max_local_z_id);
-
+  // 4. 初始化路径搜索器，A*算法专用，Fast Marching*
+  // 使用第三方库，没有自己的封装类
   path_finder = new gridPathFinder(GLSIZE, LOSIZE);
   path_finder->initGridNodeMap(_resolution, _map_origin);
-
+  /**
+   * 5. 初始化碰撞地图
+   * @brief 初始值为_free_cell = 0， 也就是没有碰撞。
+   * 并输入转换矩阵，把world坐标系里检测到的障碍物经过转换矩阵
+   * 转换到碰撞地图坐标系里进行碰撞检测
+   * @param origin_transform 碰撞地图原点变换矩阵
+   * @param _free_cell 空闲栅格值
+   */
   Translation3d origin_translation(_map_origin(0), _map_origin(1), 0.0);
   Quaterniond origin_rotation(1.0, 0.0, 0.0, 0.0);
   Affine3d origin_transform = origin_translation * origin_rotation;
