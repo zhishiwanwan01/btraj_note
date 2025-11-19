@@ -121,8 +121,17 @@ VectorXd getStateFromBezier(const MatrixXd& polyCoeff,
                             int seg_now);
 Vector3d getPosFromBezier(const MatrixXd& polyCoeff, double t_now, int seg_now);
 quadrotor_msgs::PolynomialTrajectory getBezierTraj();
-
+// myNote
 void rcvOdometryCallbck(const nav_msgs::Odometry odom) {
+  /**
+   * myNOTE: 防御性编程策略, 真实的无人机系统可能有多个odom话题
+   * 例：
+   *  真实的无人机系统可能有：
+      - frame_id = "uav1", "uav2" - 多机器人编队
+      - frame_id = "gps_odom" - GPS 定位
+      - frame_id = "vio_odom" - 视觉惯性里程计
+      - frame_id = "fused_odom" - 融合定位结果
+   */
   if (odom.header.frame_id != "uav")
     return;
 
@@ -141,11 +150,12 @@ void rcvOdometryCallbck(const nav_msgs::Odometry odom) {
   _start_acc(1) = _odom.twist.twist.angular.y;
   _start_acc(2) = _odom.twist.twist.angular.z;
 
+  // 检测位置数据是否为NaN异常值
   if (std::isnan(_odom.pose.pose.position.x) ||
       std::isnan(_odom.pose.pose.position.y) ||
       std::isnan(_odom.pose.pose.position.z))
     return;
-
+  // 发布无人机在 world 坐标系下的位置变换
   static tf::TransformBroadcaster br;
   tf::Transform transform;
   transform.setOrigin(tf::Vector3(_odom.pose.pose.position.x,
@@ -226,6 +236,7 @@ void rcvPointCloudCallBack(const sensor_msgs::PointCloud2& pointcloud_map) {
     auto mk = cloud.points[idx];
     pcl::PointXYZ pt(mk.x, mk.y, mk.z);
 
+    // 过滤局部窗口外的点
     if (fabs(pt.x - _start_pt(0)) > _x_local_size / 2.0 ||
         fabs(pt.y - _start_pt(1)) > _y_local_size / 2.0 ||
         fabs(pt.z - _start_pt(2)) > _z_local_size / 2.0)

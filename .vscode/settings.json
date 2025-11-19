@@ -11,6 +11,13 @@
         "span": "cpp",
         "random": "cpp",
         "fstream": "cpp",
-        "ratio": "cpp"
-    }
+        "ratio": "cpp",
+        "cstring": "cpp",
+        "cctype": "cpp",
+        "new": "cpp",
+        "vector": "cpp",
+        "utility": "cpp",
+        "map": "cpp"
+    },
+    "cmake.sourceDirectory": "/home/zsww/leosNuc15/02_project/btrajSim_2025-08/catkin_ws/src/Btraj"
 }

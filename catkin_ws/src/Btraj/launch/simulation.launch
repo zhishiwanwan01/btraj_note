@@ -89,7 +89,7 @@ ROS背景知识：
       <param name="map/z_size"       value="$(arg map_size_z)"/>  <!-- 世界Z边界 -->
 
       <!-- 局部规划窗口(无人机周围滑动窗口，提高计算效率) -->
-      <param name="map/z_local_size" value="16.0"/>  <!-- 局部规划窗口X尺寸(米) -->
+      <param name="map/x_local_size" value="16.0"/>  <!-- 局部规划窗口X尺寸(米) -->
       <param name="map/y_local_size" value="16.0"/>  <!-- 局部规划窗口Y尺寸(米) -->
       <param name="map/z_local_size" value="8.0" />  <!-- 局部规划窗口Z尺寸(米) -->
 
