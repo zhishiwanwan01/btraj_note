@@ -17,7 +17,8 @@
         "new": "cpp",
         "vector": "cpp",
         "utility": "cpp",
-        "map": "cpp"
+        "map": "cpp",
+        "deque": "cpp"
     },
     "cmake.sourceDirectory": "/home/zsww/leosNuc15/02_project/btrajSim_2025-08/catkin_ws/src/Btraj"
 }
