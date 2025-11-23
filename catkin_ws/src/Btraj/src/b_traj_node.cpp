@@ -122,6 +122,11 @@ VectorXd getStateFromBezier(const MatrixXd& polyCoeff,
 Vector3d getPosFromBezier(const MatrixXd& polyCoeff, double t_now, int seg_now);
 quadrotor_msgs::PolynomialTrajectory getBezierTraj();
 
+/**
+ * @brief 里程计订阅回调函数，实时接收无人机状态信息并更新规划起始条件
+ * @param odom 里程计消息（包含pose和twist信息，来自odom_generator节点）
+ * 详细文档：docs/code docs/rcvOdometryCallbck.md
+ */
 void rcvOdometryCallbck(const nav_msgs::Odometry odom) {
   /**
    * myNOTE: 防御性编程策略, 真实的无人机系统可能有多个odom话题
@@ -166,7 +171,15 @@ void rcvOdometryCallbck(const nav_msgs::Odometry odom) {
       tf::StampedTransform(transform, ros::Time::now(), "world", "quadrotor"));
 }
 
+/**
+ * @brief 路径点订阅回调函数，接收RViz 3D Nav Goal工具发送的目标点并启动轨迹规划
+ *
+ * 详细文档：docs/code docs/rcvWaypointsCallback.md
+ *
+ * @param wp 路径点消息（来自RViz的waypoint_tool插件，通常只使用第一个点）
+ */
 void rcvWaypointsCallback(const nav_msgs::Path& wp) {
+  // 过滤无效的输入航点
   if (wp.poses[0].pose.position.z < 0.0)
     return;
 
@@ -186,6 +199,13 @@ void rcvWaypointsCallback(const nav_msgs::Path& wp) {
 // 全局变量，在rcvPointCloudCallBack和trajPlanning中使用
 Vector3d _local_origin;
 
+/**
+ * @brief
+ * 点云订阅回调函数，实时接收传感器数据并维护局部/全局碰撞地图，主动监测轨迹安全性
+ * @param pointcloud_map
+ * 输入的ROS点云消息（来自传感器仿真节点random_forest_sensing）
+ * 详细文档：docs/code docs/rcvPointCloudCallBack.md
+ */
 void rcvPointCloudCallBack(const sensor_msgs::PointCloud2& pointcloud_map) {
   // 将 ROS 点云消息转换为 PCL 格式，没有数据直接返回。
   pcl::PointCloud<pcl::PointXYZ> cloud;
@@ -227,7 +247,7 @@ void rcvPointCloudCallBack(const sensor_msgs::PointCloud2& pointcloud_map) {
   collision_map_local = new CollisionMapGrid(
       origin_local_transform, "world", _resolution, _x_buffer_size,
       _y_buffer_size, _z_buffer_size, _free_cell);
-      
+
   // BUG 它预分配了20个未初始化的点,然后用 push_back
   // 添加新点,结果向量中前20个点是垃圾数据
   vector<pcl::PointXYZ> inflatePts(20);
@@ -285,19 +305,10 @@ void rcvPointCloudCallBack(const sensor_msgs::PointCloud2& pointcloud_map) {
 }
 
 /**
- * @brief 对单个点进行膨胀，生成多个点
- * 
- * 为什么需要这个函数：
- * 1. 安全裕度：点云传感器检测到的障碍物只是表面点，需要向外扩展以确保无人机与障碍物保持安全距离
- * 2. 传感器误差：点云数据存在测量误差和稀疏性，膨胀可以补偿这些不确定性
- * 3. 无人机尺寸：将障碍物膨胀相当于把无人机视为质点，简化了碰撞检测的复杂度
- * 4. 运动余量：为轨迹跟踪误差和动态响应延迟预留缓冲空间
- * 
- * @param pt 输入点
- * @return 膨胀后的点集合
- * 变量说明：
- * _cloud_margin: 膨胀半径，默认0.3m
- * _resolution: 栅格分辨率，默认0.1m
+ * @brief 对单个障碍物点进行膨胀，生成周围立方体区域的多个栅格点
+ * @param pt 输入的障碍物点
+ * @return 膨胀后的点集合（立方体区域内的所有栅格点）
+ * 详细文档：docs/code docs/pointInflate.md
  */
 vector<pcl::PointXYZ> pointInflate(pcl::PointXYZ pt) {
   int num = int(_cloud_margin * _inv_resolution);
