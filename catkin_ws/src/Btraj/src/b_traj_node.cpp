@@ -173,22 +173,21 @@ void rcvOdometryCallbck(const nav_msgs::Odometry odom) {
 
 /**
  * @brief 路径点订阅回调函数，接收RViz 3D Nav Goal工具发送的目标点并启动轨迹规划
- *
- * 详细文档：docs/code docs/rcvWaypointsCallback.md
- *
  * @param wp 路径点消息（来自RViz的waypoint_tool插件，通常只使用第一个点）
+ * 详细文档：docs/code docs/rcvWaypointsCallback.md
  */
 void rcvWaypointsCallback(const nav_msgs::Path& wp) {
   // 过滤无效的输入航点
   if (wp.poses[0].pose.position.z < 0.0)
     return;
-
+  // _is_init 在这个项目中没有实际作用，可能是调试用途或预留功能
   _is_init = false;
   _end_pt << wp.poses[0].pose.position.x, wp.poses[0].pose.position.y,
       wp.poses[0].pose.position.z;
 
   _has_target = true;
-  // ? 这个变量为什么在收到新的目标点后要置为true？
+  // _is_emerg 作用分析见
+  // rcvWaypointsCallback.md - 抢占式规划机制与 _is_emerg详解
   _is_emerg = true;
 
   ROS_INFO("[Fast Marching Node] receive the way-points");
@@ -842,12 +841,16 @@ double velMapping(double d, double max_v) {
 
   return vel * max_v;
 }
-
+/**
+ * @brief 轨迹规划主函数
+ * 详细文档：docs/code docs/trajPlanning.md
+ */
 void trajPlanning() {
   if (_has_target == false || _has_map == false || _has_odom == false)
     return;
 
   vector<Cube> corridor;
+  // 路径搜索，is_use_fm=true表示使用快速行进法进行路径搜索, 否则使用A*算法
   if (_is_use_fm) {
     ros::Time time_1 = ros::Time::now();
     float oob_value = INFINITY;
