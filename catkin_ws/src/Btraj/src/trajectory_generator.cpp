@@ -240,6 +240,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
     r = MSK_appendvars(task, ctrlP_num);
 
   // ROS_WARN("set variables boundary");
+  // 设置变量边界（控制点的空间范围）
   for (j = 0; j < ctrlP_num && r == MSK_RES_OK; ++j) {
     if (r == MSK_RES_OK)
       r = MSK_putvarbound(
@@ -252,6 +253,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
 
   // Set the bounds on constraints.
   //   for i=1, ...,con_num : blc[i] <= constraint i <= buc[i]
+  // 设置约束边界
   for (i = 0; i < con_num && r == MSK_RES_OK; i++) {
     r = MSK_putconbound(
         task,
@@ -264,6 +266,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   // ROS_WARN("[Bezier Trajectory] Start stacking the Linear Matrix A,
   // inequality part");
   int row_idx = 0;
+  // 构建速度约束
   // The velocity constraints
   if (ENFORCE_VEL) {
     for (int k = 0; k < segment_num; k++) {
@@ -287,6 +290,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   }
 
   // The acceleration constraints
+  // 构建加速度约束
   if (ENFORCE_ACC) {
     for (int k = 0; k < segment_num; k++) {
       for (int i = 0; i < 3; i++) {
@@ -309,6 +313,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
     }
   }
   /*   Start position  */
+  // 为起点添加边界条件约束
   {
     // position :
     for (int i = 0; i < 3; i++) {  // loop for x, y, z
@@ -349,6 +354,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   }
 
   /*   End position  */
+  // 为终点添加边界条件约束
   // ROS_WARN(" end position");
   {
     // position :
@@ -390,6 +396,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   }
 
   /*   joint points  */
+  // 为各段连接处添加连续性约束
   // ROS_WARN(" joint position");
   {
     int sub_shift = 0;
