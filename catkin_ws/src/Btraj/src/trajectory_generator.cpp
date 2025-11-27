@@ -60,14 +60,17 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   isLimitAcc  // whether or not adding extra constraints for ensuring the
               // acceleration feasibility
 
-  double initScale = corridor.front().t;
-  double lstScale = corridor.back().t;
-  int segment_num = corridor.size();
+  // 提取飞行走廊的信息
+  double initScale = corridor.front().t;  // 第一段的时间分配
+  double lstScale = corridor.back().t;    // 最后一段的时间分配
+  int segment_num = corridor.size();      // 轨迹段数
 
-  int n_poly = traj_order + 1;
-  int s1d1CtrlP_num = n_poly;
-  int s1CtrlP_num = 3 * s1d1CtrlP_num;
+  // 计算控制点数量和约束数量
+  int n_poly = traj_order + 1;          // 控制点数量 = Bézier 多项式阶数 + 1
+  int s1d1CtrlP_num = n_poly;           // 每段单轴控制点数量
+  int s1CtrlP_num = 3 * s1d1CtrlP_num;  // xyz 三轴控制点总数
 
+  // 计算等式约束数量 - 起点、终点、各段连接处、以及总和约束数量
   int equ_con_s_num = 3 * 3;  // p, v, a in x, y, z axis at the start point
   int equ_con_e_num = 3 * 3;  // p, v, a in x, y, z axis at the end point
   int equ_con_continuity_num = 3 * 3 * (segment_num - 1);
@@ -75,27 +78,34 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
                     equ_con_continuity_num;  // p, v, a in x, y, z axis in each
                                              // segment's joint position
 
+  // 高阶约束数量 - 速度、加速度约束数量 = xyz三轴 * 每段约束点数 * 段数
   int vel_con_num = 3 * traj_order * segment_num;
   int acc_con_num = 3 * (traj_order - 1) * segment_num;
 
+  // 如果用户不启用速度/加速度限制，则将对应约束数量设为0
+  // myNOTE 现代C++建议直接使用isLimitVel和isLimitAcc，而不是宏定义
   if (!ENFORCE_VEL)
     vel_con_num = 0;
 
   if (!ENFORCE_ACC)
     acc_con_num = 0;
 
+  // 高阶约束总数
   int high_order_con_num = vel_con_num + acc_con_num;
   // int high_order_con_num = 0; //3 * traj_order * segment_num;
 
-  int con_num = equ_con_num + high_order_con_num;
-  int ctrlP_num = segment_num * s1CtrlP_num;
+  int con_num = equ_con_num + high_order_con_num;  // 总约束数量
+  int ctrlP_num = segment_num * s1CtrlP_num;       // 总控制点数（优化变量）
 
-  double x_var[ctrlP_num];
-  double primalobj;
+  double x_var[ctrlP_num];  // 存储优化结果的数组
+  double primalobj;         // 存储最优目标函数值
 
-  MSKrescodee r;
+  //
+  MSKrescodee r;  // Mosek 返回码变量
+  // 约束边界容器（有文档）, MSKboundkeye: 边界类型枚举
   vector<pair<MSKboundkeye, pair<double, double> > > con_bdk;
 
+  // 速度约束边界
   if (ENFORCE_VEL) {
     /***  Stack the bounding value for the linear inequality for the velocity
      * constraints  ***/
@@ -106,6 +116,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
     }
   }
 
+  // 加速度约束边界
   if (ENFORCE_ACC) {
     /***  Stack the bounding value for the linear inequality for the
      * acceleration constraints  ***/
@@ -117,6 +128,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   }
 
   // ROS_WARN("[Bezier Trajectory] equality bound %d", equ_con_num);
+  // 设置等式约束边界
   for (int i = 0; i < equ_con_num; i++) {
     double beq_i;
     if (i < 3)

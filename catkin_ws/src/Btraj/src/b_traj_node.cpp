@@ -999,6 +999,7 @@ void trajPlanning() {
     visExpNode(searchedNodes);
 
     ros::Time time_bef_corridor = ros::Time::now();
+    // 生成立方体走廊
     corridor = corridorGeneration(gridPath);
     ros::Time time_aft_corridor = ros::Time::now();
     ROS_WARN("Time consume in corridor generation is %f",
