@@ -479,15 +479,18 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   int min_order_l = floor(minimize_order);
   int min_order_u = ceil(minimize_order);
 
+  // Q矩阵非零个数
   int NUMQNZ = 0;
   for (int i = 0; i < segment_num; i++) {
     int NUMQ_blk =
         (traj_order + 1);  // default minimize the jerk and minimize_order = 3
     NUMQNZ += 3 * NUMQ_blk * (NUMQ_blk + 1) / 2;
   }
-  MSKint32t qsubi[NUMQNZ], qsubj[NUMQNZ];
-  double qval[NUMQNZ];
+  // 下面三个数组传递给 MSK_putqobj() 来构建QP问题的目标函数二次项
+  MSKint32t qsubi[NUMQNZ], qsubj[NUMQNZ];  // 存储Q矩阵非零元素的行列索引
+  double qval[NUMQNZ];                     // 存储对应的值
 
+  // 填充 Q 矩阵的三元组数据，用于构建 QP 问题的二次目标函数
   {
     int sub_shift = 0;
     int idx = 0;
@@ -516,11 +519,12 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
     }
   }
 
-  ros::Time time_end1 = ros::Time::now();
+  ros::Time time_end1 = ros::Time::now();  // 记录开始优化的时间
 
+  // 设置二次目标函数 Q 矩阵
   if (r == MSK_RES_OK)
     r = MSK_putqobj(task, NUMQNZ, qsubi, qsubj, qval);
-
+  // 设置为最小化问题
   if (r == MSK_RES_OK)
     r = MSK_putobjsense(task, MSK_OBJECTIVE_SENSE_MINIMIZE);
 
@@ -528,40 +532,37 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   bool solve_ok = false;
   if (r == MSK_RES_OK) {
     // ROS_WARN("Prepare to solve the problem ");
-    MSKrescodee trmcode;
-    r = MSK_optimizetrm(task, &trmcode);
-    MSK_solutionsummary(task, MSK_STREAM_LOG);
+    MSKrescodee trmcode;  // 定义一个变量用来保存“终止原因/终止代码”
+    r = MSK_optimizetrm(task, &trmcode);        // 执行优化求解
+    MSK_solutionsummary(task, MSK_STREAM_LOG);  // 打印求解结果摘要
 
     if (r == MSK_RES_OK) {
+      // 声明一个 Mosek 求解器的解状态变量
       MSKsolstae solsta;
-      MSK_getsolsta(task, MSK_SOL_ITR, &solsta);
+      MSK_getsolsta(task, MSK_SOL_ITR, &solsta);  // 获取求解状态
 
       switch (solsta) {
-        case MSK_SOL_STA_OPTIMAL:
-        case MSK_SOL_STA_NEAR_OPTIMAL:
-
-          r = MSK_getxx(task,
-                        MSK_SOL_ITR,  // Request the interior solution.
-                        x_var);
-
-          r = MSK_getprimalobj(task, MSK_SOL_ITR, &primalobj);
-
+        case MSK_SOL_STA_OPTIMAL:                   // 找到最优解
+        case MSK_SOL_STA_NEAR_OPTIMAL:              // 找到近似最优解
+          r = MSK_getxx(task, MSK_SOL_ITR, x_var);  // 提取优化变量（控制点）
+          r = MSK_getprimalobj(task, MSK_SOL_ITR,
+                               &primalobj);  // 提取目标函数值
           obj = primalobj;
-          solve_ok = true;
-
+          solve_ok = true;  // 标记求解成功
           break;
 
         case MSK_SOL_STA_DUAL_INFEAS_CER:
         case MSK_SOL_STA_PRIM_INFEAS_CER:
         case MSK_SOL_STA_NEAR_DUAL_INFEAS_CER:
         case MSK_SOL_STA_NEAR_PRIM_INFEAS_CER:
+          // 问题无解(约束冲突)
           printf("Primal or dual infeasibility certificate found.\n");
           break;
 
         case MSK_SOL_STA_UNKNOWN:
           printf("The status of the solution could not be determined.\n");
-          // solve_ok = true; // debug
-          break;
+          break;  // 无法判断状态
+
         default:
           printf("Other solution status.");
           break;
@@ -571,6 +572,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
     }
   }
 
+  // 错误处理
   if (r != MSK_RES_OK) {
     // In case of an error print error code and description.
     char symname[MSK_MAX_STR_LEN];
@@ -581,24 +583,30 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
     printf("Error %s - '%s'\n", symname, desc);
   }
 
+  // 删除任务和环境句柄
   MSK_deletetask(&task);
   MSK_deleteenv(&env);
 
+  // 性能统计
   ros::Time time_end2 = ros::Time::now();
   ROS_WARN("time consume in optimize is :");
-  cout << time_end2 - time_end1 << endl;
+  cout << time_end2 - time_end1 << endl;  // 打印时间差
 
+  // 求解状态错误处理
   if (!solve_ok) {
     ROS_WARN("In solver, falied ");
     return -1;
   }
 
+  // 把 Mosek 求解出的 C 风格数组转换为Eigen的VectorXd
   VectorXd d_var(ctrlP_num);
   for (int i = 0; i < ctrlP_num; i++)
     d_var(i) = x_var[i];
 
+  // 初始化输出矩阵
   PolyCoeff = MatrixXd::Zero(segment_num, 3 * (traj_order + 1));
 
+  // 将一维数组转换为二维矩阵
   int var_shift = 0;
   for (int i = 0; i < segment_num; i++) {
     for (int j = 0; j < 3 * n_poly; j++)
