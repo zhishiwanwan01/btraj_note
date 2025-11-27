@@ -475,7 +475,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   }
 
   // ROS_WARN("[Bezier Trajectory] Start stacking the objective");
-
+  // 优化阶数的下界和上界
   int min_order_l = floor(minimize_order);
   int min_order_u = ceil(minimize_order);
 
