@@ -152,10 +152,15 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
     con_bdk.push_back(cb_eq);
   }
 
+  // 创建一个容器，存储每个优化变量（控制点）的边界类型和上下界
   /* ## define a container for control points' boundary and boundkey ## */
   /* ## dataType in one tuple is : boundary type, lower bound, upper bound ## */
   vector<pair<MSKboundkeye, pair<double, double> > > var_bdk;
 
+  // 填充var_bdk
+  // 外层 k：遍历每个轨迹段（segment）
+  // 中层 i：遍历 x, y, z 三个坐标轴
+  // 内层 j：遍历每段轨迹的所有控制点
   for (int k = 0; k < segment_num; k++) {
     Cube cube_ = corridor[k];
     double scale_k = cube_.t;
@@ -174,7 +179,7 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
         }
 
         vb_x = make_pair(
-            MSK_BK_RA,
+            MSK_BK_RA,  // Mosek 的边界类型，表示 Range Bound（范围约束）
             make_pair(lo_bound,
                       up_bound));  // # vb_x means: varialbles boundary of
                                    // unknowns x (Polynomial coeff)
@@ -185,17 +190,34 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   }
 
   MSKint32t j, i;
-  MSKenv_t env;
-  MSKtask_t task;
+  MSKenv_t env;    // Mosek 环境句柄
+  MSKtask_t task;  // Mosek 任务句柄
   // Create the mosek environment.
   r = MSK_makeenv(&env, NULL);
 
+  // BUG 这里严格来讲不该这个写, 应该先检查r的值如:
+  /**
+   * if (r = MSK_RES_OK) {
+   *     r= MSK_makeenv(&env, NULL);
+   * }
+   * else {
+   *   打印错误信息
+   * }
+   */
   // Create the optimization task.
   r = MSK_maketask(env, con_num, ctrlP_num, &task);
 
   // Parameters used in the optimizer
   // ######################################################################
   // MSK_putintparam (task, MSK_IPAR_OPTIMIZER , MSK_OPTIMIZER_INTPNT );
+  /**
+   * 从上到下依次是:
+   * 1. 使用单线程求解 (避免多线程开销)
+   * 2. 凸性检查的相对容差 (1%)
+   * 3. 对偶可行性容差－对偶问题的约束满足精度
+   * 4. 原始可行性容差－原问题的约束满足精度
+   * 5. 不可行性容差－判定问题无解的阈值
+   * */
   MSK_putintparam(task, MSK_IPAR_NUM_THREADS, 1);
   MSK_putdouparam(task, MSK_DPAR_CHECK_CONVEXITY_REL_TOL, 1e-2);
   MSK_putdouparam(task, MSK_DPAR_INTPNT_TOL_DFEAS, 1e-4);
@@ -208,11 +230,13 @@ int TrajectoryGenerator::BezierPloyCoeffGeneration(
   //  Append empty constraints.
   // The constraints will initially have no bounds.
   if (r == MSK_RES_OK)
+    // 添加 con_num 个约束（初始无边界）
     r = MSK_appendcons(task, con_num);
 
   // Append optimizing variables. The variables will initially be fixed at zero
   // (x=0).
   if (r == MSK_RES_OK)
+    // 添加 ctrlP_num 个优化变量（初始值为0）
     r = MSK_appendvars(task, ctrlP_num);
 
   // ROS_WARN("set variables boundary");
